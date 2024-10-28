@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import Input from "../../components/Input";
 import { FaArrowUp } from "react-icons/fa";
 import Button from "../../components/Button";
+import {analyze} from "../../utils/api-functions.ts";
 
 interface Message {
   text: string;
@@ -80,7 +81,7 @@ const Home: React.FC = () => {
     );
   }
 
-  const handleSearchSubmit = async () => {
+const handleSearchSubmit = async () => {
     setSearchEnabled(false);
     if (!searchQuery.trim()) return;
 
@@ -88,29 +89,18 @@ const Home: React.FC = () => {
     setMessages((prev) => [...prev, newMessage]);
 
     try {
-      const response = await fetch("YOUR_BACKEND_ENDPOINT", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query: searchQuery }),
-      });
+        const data = await analyze(searchQuery); // Passa o texto como argumento
+        console.log(data.response)
 
-      // Exibir o checklist após enviar a mensagem
-      setShowChecklist(true);
-
-      const data = await response.json();
-      const receivedMessage: Message = {
-        text: data.response,
-        type: "received",
-      };
-      setMessages((prev) => [...prev, receivedMessage]);
+        setSelectedTools(data.response)
+        setShowChecklist(true);
     } catch (error) {
-      console.error("Error sending message:", error);
+        console.error("Error sending message:", error);
     } finally {
-      setSearchQuery("");
+        setSearchQuery("");
+        setSearchEnabled(true);
     }
-  };
+};
 
   const handleNewSearch = () => {
     setMessages([]);
@@ -147,31 +137,41 @@ const Home: React.FC = () => {
     ]);
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) {
-      console.error("No file selected.");
-      return;
-    }
+ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  if (!e.target.files || e.target.files.length === 0) {
+    console.error("No file selected.");
+    return;
+  }
 
-    const file = e.target.files[0];
-    const formData = new FormData();
-    formData.append("serviceOrder", file);
+  const file = e.target.files[0];
+  const formData = new FormData();
+  formData.append("file", file); // Enviar o arquivo
+  formData.append("file_type", "audio"); // Definindo o tipo como 'audio'
 
-    const newMessage: Message = {
-      text: `File uploaded: ${file.name}`,
-      type: "sent",
-    };
-    setMessages((prev) => [...prev, newMessage]);
+  const newMessage: Message = {
+    text: `${file.name}`,
+    type: "sent",
+  };
+  setMessages((prev) => [...prev, newMessage]);
 
-    const response = await fetch("YOUR_BACKEND_ENDPOINT", {
+  try {
+    const response = await fetch("http://localhost:5000/transcribe", {
       method: "POST",
       body: formData,
     });
 
+    if (!response.ok) {
+      throw new Error("Error uploading file");
+    }
+
     const data = await response.json();
-    const receivedMessage: Message = { text: data.response, type: "received" };
+    const receivedMessage: Message = { text: data.text, type: "received" };
     setMessages((prev) => [...prev, receivedMessage]);
-  };
+  } catch (error) {
+    console.error("Error uploading file:", error);
+  }
+};
+
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
@@ -179,7 +179,7 @@ const Home: React.FC = () => {
         Descreva o serviço
       </h1>
       <div className="text-[14px] mb-4">
-        ou faça o upload da ordem de serviço
+        ou faça o upload de arquivo com a descrição do serviço
       </div>
 
       <div className="w-11/12 h-full flex flex-col mb-4">

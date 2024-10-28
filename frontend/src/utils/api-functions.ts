@@ -5,8 +5,8 @@ const transcribe = async (data: any) => {
   return response.data;
 };
 
-const analyze = async (data: any) => {
-  const response = await api.post("/analyze", data);
+const analyze = async (text: string) => {
+  const response = await api.post("/analyze", { text }); // Envia o campo "text" com o valor
   return response.data;
 };
 
@@ -15,4 +15,4 @@ const return_inavaliables = async (data: any) => {
   return response.data;
 };
 
-export { transcribe, analyze, return_inavaliables };
+export { transcribe, analyze, return_inavaliables};

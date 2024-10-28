@@ -2,12 +2,15 @@ import os
 from flask import Flask, request, jsonify
 from openai import OpenAI
 from dotenv import load_dotenv
+from flask_cors import CORS
 
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
+
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": ["http://127.0.0.1:5173"]}})
 
 TOOL_LIST = {
  'MAT001': ['Serra Circular', 'Ferramentas de Corte', 1],
@@ -88,30 +91,24 @@ def hello_world():  # put application's code here
 
 @app.route('/transcribe', methods=['POST'])
 def transcribe():
-    data = request.get_json()
-    if not data or 'file_path' not in data or 'file_type' not in data:
-        return jsonify({'error': 'O campo "file_path" e o campo "file_type" são obrigatórios.'}), 400
+    if 'file' not in request.files or 'file_type' not in request.form:
+        return jsonify({'error': 'O campo "file" e "file_type" são obrigatórios.'}), 400
 
-    file_path = data['file_path']
-    file_type = data['file_type']
+    audio_file = request.files['file']
+    file_type = request.form['file_type']
 
-    if file_type == 'audio':
-        audio_file = open(file_path, "rb")
+    if file_type != 'audio':
+        return jsonify({"error": "Formato de arquivo não suportado."}), 400
+
+    try:
         transcription = client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_file
         )
-        print(transcription.text)
-        return jsonify({'text': transcription.text}), 200
+        return jsonify({'text': transcription['text']}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-        # Processa arquivos de texto ou documentos
-    #elif file_type == "text/plain" or file_type == "application/pdf":
-       # text = file.read().decode('utf-8')  # Lê o conteúdo do texto ou PDF
-
-    else:
-        return jsonify({"error": "Formato de arquivo não suportado."}), 400
-
-    # return jsonify({'file_path': file_path}), 200
 
 @app.route("/analyze", methods=['POST'])
 def analyze_text_with_chatgpt():
@@ -132,7 +129,7 @@ def analyze_text_with_chatgpt():
     prompt = (
         f"Com base no serviço de manutenção descrito: '{text}', identifique quais "
         f"ferramentas da lista a seguir são necessárias:\n"
-        f"Retorne a resposta no formato de um array, em que cada valor é o nome de um equipamento. Exemplo: ['Óleo Lubrificante 10W30', 'Filtro de Ar']\n"
+        f"Retorne a resposta no formato de um array, em que cada valor é o código de um equipamento. Exemplo: ['MAT001', 'MAT002']\n"
         f"Importante: retorne apenas itens que existem na lista que te foi passada."
         f"{'; '.join(formatted_tools)}"
     )
@@ -178,4 +175,4 @@ def return_avaliability():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=5000, debug=True)
